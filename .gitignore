@@ -220,3 +220,11 @@ __marimo__/
 # Ignore massive data and model files
 *.csv
 *.pkl
+
+# Abaikan file model yang berat
+data/*.pkl
+
+# Abaikan file sistem & cache bawaan Mac/Python
+.ipynb_checkpoints/
+__pycache__/
+.DS_Store
