@@ -5,6 +5,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 import re
 from collections import Counter
 
+
 # --- Page Configuration ---
 st.set_page_config(page_title="Dishcover", page_icon="🍳", layout="centered")
 
