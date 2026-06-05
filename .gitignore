@@ -228,3 +228,5 @@ data/*.pkl
 .ipynb_checkpoints/
 __pycache__/
 .DS_Store
+dishcover_model.pkl
+__pycache__/
