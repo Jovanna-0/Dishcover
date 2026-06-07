@@ -6,6 +6,13 @@ import ast
 from collections import Counter
 import json
 import os
+import inflect
+from streamlit_local_storage import LocalStorage
+import uuid
+
+# Initialize the bridge to the user's browser
+localS = LocalStorage()
+p = inflect.engine()
 
 # --- 1. Page Configuration & CSS ---
 st.set_page_config(page_title="Dishcover", page_icon="🍳", layout="centered")
@@ -13,7 +20,7 @@ st.set_page_config(page_title="Dishcover", page_icon="🍳", layout="centered")
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@400;500&display=swap');
-
+label[data-testid="stWidgetLabel"] p { color: #2C1A0E !important; }
 html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; }
 .stApp { background-color: #FAF7F2; }
 
@@ -120,17 +127,28 @@ except Exception as e:
 SAVE_FILE = "saved_recipes.json"
 
 def load_saved_recipes():
-    if os.path.exists(SAVE_FILE):
+    # 1. Ask the user's browser if they have any saved data
+    browser_data = localS.getItem("dishcover_recipes")
+    
+    # 2. If data exists, decode it and load it in!
+    if browser_data:
         try:
-            with open(SAVE_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+            # We use json.loads to convert the browser string back into a Python dictionary
+            return json.loads(browser_data)
         except:
             return {}
     return {}
 
-def save_saved_recipes(data):
-    with open(SAVE_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4)
+def save_saved_recipes(data, unique_widget_key):
+    # --- NEW: Master Save Logic ---
+    if 'trigger_save' not in st.session_state:
+        st.session_state.trigger_save = False
+
+    # If a button flipped the flag to True, generate a fresh widget to save the data
+    if st.session_state.trigger_save:
+        # uuid.uuid4() ensures the widget key is 100% unique every single time
+        localS.setItem("dishcover_recipes", json.dumps(st.session_state.saved_recipes), key=f"save_{uuid.uuid4()}")
+        st.session_state.trigger_save = False
 
 # --- 3. Early Session State Init (must be before sidebar reads it) ---
 if 'saved_recipes' not in st.session_state:
@@ -170,10 +188,70 @@ if page == "Discover Recipes":
         unsafe_allow_html=True
     )
 
-    # Centered Search Box
+   # --- 1. Define words that describe preparation ---
+    fluff_words = [
+        ' can ', ' cans ', ' canned ', ' jar ', ' jars ', ' package ', ' packages ', ' of ', 
+        ' cut ', ' inch ', ' halved ', ' pitted ', ' thinly ', ' sliced ', 'adjustableblade',
+        ' chopped ', ' diced ', ' peeled ', ' fresh ', ' large ', ' small ', 
+        ' medium ', ' pieces ', ' whole ', ' halves ', 'more', 'slice', 'stock', 'broth', 'ground', 'grind', 'crumble', 
+        'crumbled', 'zest', 'juice', 'squeeze', 'drizzle', 'boneless', 'chuck', 'roast', 'lowsalt', 'serving', 'rotisserie', 'lowsodium',
+        ' yolk ', ' yolks ', ' white ', ' whites ', ' beaten ', ' whisked ', 
+        ' divided ', ' separated ', 'blend', 'puree', 'mashed', 'grated', 'shredded', 'minced', 'crushed',
+        'lightly ', 'finely ', 'coarsely ', 'roughly ', 'thinly ', 'thickly ', 'julienned ', 'ribboned ',
+        'cubed ', 'quartered ', 'sliced ', 'diced ', 'chopped ', 'minced ', 'zested ', 'peeled ',
+        'seeded ', 'pitted ', 'deveined ', 'trimmed ', 'rinsed ', 'drained ', 'patted dry ',
+        'room temperature ', 'cold ', 'frozen ', 'freshly ', 'softened ', 'melted ', 'grated ', 'shredded ', 'sliced thinly ',
+        'from the can ', 'from the jar ', 'from the package ', 'canned ', 'jarred ', 'packaged ',
+        'from', 'glaze', 'minute', 'plus', 'cooked', 'uncooked', 'raw', 'ripe', 'overripe', 'underripe', 'dried', 'fresh ', 'frozen ', 'cube'
+
+    ]
+    # --- 2. Clean your original list ---
+    display_ingredients = set()
+
+    # Assuming 'unique_ingredients' is your original raw list based on your code
+    for item in unique_ingredients: 
+        
+        # Replace underscores with spaces FIRST
+        clean_item = f" {item.lower().replace('_', ' ')} " 
+        
+        # Strip out the fluff words
+        for word in fluff_words:
+            clean_item = clean_item.replace(word, ' ')
+                
+        # --- THE NEW FIX: Process word-by-word ---
+        
+        # 1. Break the remaining string into a list of individual words
+        words = clean_item.split()
+        final_words = []
+        
+        # 2. Singularize every single word one by one
+        for w in words:
+            if len(w) <= 1:
+                continue
+                
+            sing = p.singular_noun(w)
+            final_w = sing if sing else w 
+            final_words.append(final_w)
+            
+        # 3. Remove duplicate words inside the same string 
+        # (e.g. ['egg', 'egg'] instantly becomes just ['egg'])
+        # dict.fromkeys() is a python trick to remove duplicates while keeping the original order
+        unique_words = list(dict.fromkeys(final_words))
+        
+        # 4. Join back together and capitalize for the UI
+        final_item = " ".join(unique_words).title()
+        
+        # Add to the master set
+        if final_item:
+            display_ingredients.add(final_item)
+
+    # --- 3. Sort alphabetically ---
+    clean_dropdown_options = sorted(list(display_ingredients))
+
+    # --- 4. The actual Streamlit UI component ---
     selected_ingredients = st.multiselect(
         "What's in your kitchen?", 
-        options=unique_ingredients, 
+        options=clean_dropdown_options, # We pass the cleaned list here!
         placeholder="Type to search ingredients...",
         format_func=lambda x: x.replace('_', ' ').title() 
     )
@@ -185,7 +263,6 @@ if page == "Discover Recipes":
     if search_button:
         st.session_state.submitted_ingredients = selected_ingredients.copy()
 
-    st.markdown("---")
 
     # --- 6. ML Logic & Rendering ---
 
@@ -210,6 +287,16 @@ if page == "Discover Recipes":
             
     else:
         with st.spinner('Powering up the Machine Learning Radar...'):
+
+            exclusion_rules = {
+                'sugar': ['brown', 'powdered', 'confectioners', 'icing', 'coconut'],
+                'onion': ['red', 'green', 'spring', 'pearl'],
+                'cheese': ['cream', 'blue', 'cottage', 'goat'],
+                'flour': ['almond', 'coconut', 'bread', 'cake'],
+                'milk': ['coconut', 'almond', 'soy', 'oat', 'condensed', 'evaporated'],
+                'rice': ['wild', 'brown', 'cauliflower'],
+                'oil': ['sesame', 'chili', 'coconut', 'truffle']
+            }
             
             # Load the locked-in ingredients from memory
             active_ingredients = st.session_state.submitted_ingredients
@@ -222,21 +309,31 @@ if page == "Discover Recipes":
             top_results = df.iloc[indices.flatten()].copy()
             top_results['Cosine_Score'] = similarity_scores
             
+            # --- UNIFIED MATCHING LOGIC ---
             def count_matches(recipe_ingredients_string):
                 count = 0
+                recipe_text_lower = str(recipe_ingredients_string).lower()
                 for item in active_ingredients:
-                    if re.search(rf'\b{item}\b', str(recipe_ingredients_string)):
+                    search_term = item.lower()
+                    
+                    # Dynamically build the negative regex based on our dictionary
+                    if search_term in exclusion_rules:
+                        lookbehinds = "".join([f"(?<!{adj} )" for adj in exclusion_rules[search_term]])
+                        pattern = re.compile(rf'{lookbehinds}\b{re.escape(search_term)}\b')
+                    else:
+                        pattern = re.compile(rf'\b{re.escape(search_term)}\b')
+                        
+                    if pattern.search(recipe_text_lower):
                         count += 1
                 return count
                 
             top_results['Match_Count'] = top_results['Cleaned_Ingredients'].apply(count_matches)
-            
             final_results = top_results.sort_values(by=['Match_Count', 'Cosine_Score'], ascending=[False, False]).head(top_k)
-            
+
             if final_results.empty:
                 st.info("No recipes found. Try adding different ingredients.")
             else:
-                st.markdown(f"### Top {len(final_results)} Matches")
+                st.markdown(f"<h3 style='color: #2C1A0E; margin-top: -0.5rem; margin-bottom: 1rem;'>Top {len(final_results)} Matches</h3>", unsafe_allow_html=True)
                 for rank, (_, row) in enumerate(final_results.iterrows(), start=1):
                     recipe_name = str(row["Title"])
                     is_saved = recipe_name in st.session_state.saved_recipes
@@ -245,43 +342,63 @@ if page == "Discover Recipes":
                     matched = row["Match_Count"]
                     total_selected = len(active_ingredients)
                     
+                    # --- UNIFIED PREVIEW TEXT LOGIC ---
                     found_in_recipe = []
                     recipe_text_lower = str(row['Cleaned_Ingredients']).lower()
                     for item in active_ingredients:
-                        if re.search(rf'\b{item}\b', recipe_text_lower):
+                        search_term = item.lower()
+                        
+                        if search_term in exclusion_rules:
+                            lookbehinds = "".join([f"(?<!{adj} )" for adj in exclusion_rules[search_term]])
+                            pattern = re.compile(rf'{lookbehinds}\b{re.escape(search_term)}\b')
+                        else:
+                            pattern = re.compile(rf'\b{re.escape(search_term)}\b')
+                            
+                        if pattern.search(recipe_text_lower):
                             found_in_recipe.append(item.replace('_', ' ').title())
-                    
-                    if found_in_recipe:
-                        used_preview_string = ", ".join(found_in_recipe)
                     else:
                         used_preview_string = "None perfectly matched (Similar profile)"
 
+                    # 3. THE ORANGE HIGHLIGHTER
                     try:
                         ing_list = ast.literal_eval(row['Ingredients'])
                         formatted_ings = []
                         for ing in ing_list:
                             highlighted_ing = ing
                             for search_term in sorted(active_ingredients, key=len, reverse=True):
-                                display_term = search_term.replace('_', ' ')
-                                if search_term == 'sugar':
-                                    pattern = re.compile(r'(?<!brown )\b' + re.escape(display_term) + r'\b', re.IGNORECASE)
+                                display_term = search_term.lower().replace('_', ' ')
+                                
+                                if display_term in exclusion_rules:
+                                    lookbehinds = "".join([f"(?<!{adj} )" for adj in exclusion_rules[display_term]])
+                                    pattern = re.compile(rf'{lookbehinds}\b{re.escape(display_term)}\b', re.IGNORECASE)
                                 else:
-                                    pattern = re.compile(r'\b' + re.escape(display_term) + r'\b', re.IGNORECASE)
+                                    pattern = re.compile(rf'\b{re.escape(display_term)}\b', re.IGNORECASE)
+                                    
                                 highlighted_ing = pattern.sub(r'<b style="color: #C9541A;">\g<0></b>', highlighted_ing)
                             formatted_ings.append(f"• {highlighted_ing}")
                         ingredients_html = "<br>".join(formatted_ings)
                     except:
+                        # Do the exact same thing for the except block if the CSV data is messy
                         highlighted_ing = str(row['Cleaned_Ingredients']).replace('_', ' ').title()
                         for search_term in sorted(active_ingredients, key=len, reverse=True):
-                            display_term = search_term.replace('_', ' ')
-                            if search_term == 'sugar':
-                                pattern = re.compile(r'(?<!brown )\b' + re.escape(display_term) + r'\b', re.IGNORECASE)
+                            display_term = search_term.lower().replace('_', ' ')
+                            if display_term in exclusion_rules:
+                                lookbehinds = "".join([f"(?<!{adj} )" for adj in exclusion_rules[display_term]])
+                                pattern = re.compile(rf'{lookbehinds}\b{re.escape(display_term)}\b', re.IGNORECASE)
                             else:
-                                pattern = re.compile(r'\b' + re.escape(display_term) + r'\b', re.IGNORECASE)
+                                pattern = re.compile(rf'\b{re.escape(display_term)}\b', re.IGNORECASE)
                             highlighted_ing = pattern.sub(r'<b style="color: #C9541A;">\g<0></b>', highlighted_ing)
                         ingredients_html = highlighted_ing
                     
-                    instructions = str(row.get('Instructions', 'No instructions provided.'))
+                    # --- NEW: Numbered Instructions Logic ---
+                    raw_instructions = str(row.get('Instructions', 'No instructions provided.'))
+                    
+                    if raw_instructions == 'No instructions provided.' or raw_instructions.lower() == 'nan':
+                        formatted_instructions = "No instructions provided."
+                    else:
+                        steps = [step.strip() for step in raw_instructions.split('. ') if len(step.strip()) > 0]
+                        # Adding an extra <br> for better spacing between cooking steps!
+                        formatted_instructions = "<br>".join([f"<b>{i+1}.</b> {step}." if not step.endswith('.') else f"<b>{i+1}.</b> {step}" for i, step in enumerate(steps)])
                     
                     bookmark_color = "#F5C518" if is_saved else "none"
                     bookmark_stroke = "#C9541A"
@@ -307,7 +424,7 @@ if page == "Discover Recipes":
 </div>
 <div class="instructions">
 <b style="color:#2C1A0E">Instructions:</b><br>
-{instructions}
+{formatted_instructions}
 </div>
 </div>
 </details>
@@ -330,8 +447,9 @@ if page == "Discover Recipes":
                                     "matched_count": matched,
                                     "total_selected": total_selected,
                                 }
-                                save_saved_recipes(st.session_state.saved_recipes)
-                            save_saved_recipes(st.session_state.saved_recipes)
+                            
+                            # Flip the switch and restart!
+                            st.session_state.trigger_save = True
                             st.rerun()
 
 elif page == "Saved Recipes":
@@ -356,7 +474,7 @@ elif page == "Saved Recipes":
         )
 
     else:
-        st.markdown(f"**{len(st.session_state.saved_recipes)} saved recipe{'s' if len(st.session_state.saved_recipes) != 1 else ''}**")
+        st.markdown(f"<p style='color: #7A5C44; font-weight: 600;'>{len(st.session_state.saved_recipes)} saved recipe{'s' if len(st.session_state.saved_recipes) != 1 else ''}</p>", unsafe_allow_html=True)
         st.markdown("")
 
         for i, (recipe_name, recipe) in enumerate(st.session_state.saved_recipes.items(), start=1):
@@ -378,14 +496,19 @@ elif page == "Saved Recipes":
             matched_count = recipe.get("matched_count", None)
             total_selected = recipe.get("total_selected", None)
 
-            if matched_ings:
+            # If the saved recipe has match data, always display it!
+            if matched_count is not None:
+                # If they had matches, list them. If 0 matches, show the fallback text.
+                display_ings = ", ".join(matched_ings) if matched_ings else "None perfectly matched"
+                
                 matched_html = f"""
 <div style="font-size:0.85rem; color:#7A5C44; margin-top:0.3rem;">
   <b style="color:#2C1A0E;">Your ingredients used:</b>
   <span style="color:#C9541A; font-weight:500;"> {matched_count} of {total_selected} matched</span>
-  &nbsp;·&nbsp; {", ".join(matched_ings)}
+  &nbsp;·&nbsp; {display_ings}
 </div>"""
             else:
+                # This only catches super old saves before we added the tracking feature
                 matched_html = ""
 
             # Format full ingredients for expanded view
@@ -394,7 +517,14 @@ elif page == "Saved Recipes":
             except:
                 full_ing_html = recipe['Ingredients']
 
-            instructions = recipe.get('Instructions', 'No instructions available.')
+            # --- NEW: Numbered Instructions Logic ---
+            raw_instructions = str(recipe.get('Instructions', 'No instructions provided.'))
+            
+            if raw_instructions == 'No instructions provided.' or raw_instructions.lower() == 'nan':
+                formatted_instructions = "No instructions provided."
+            else:
+                steps = [step.strip() for step in raw_instructions.split('. ') if len(step.strip()) > 0]
+                formatted_instructions = "<br>".join([f"<b>{i+1}.</b> {step}." if not step.endswith('.') else f"<b>{i+1}.</b> {step}" for i, step in enumerate(steps)])
 
             card_html = f"""
 <div class="recipe-card">
@@ -416,7 +546,7 @@ elif page == "Saved Recipes":
   </div>
   <div class="instructions">
     <b style="color:#2C1A0E;">Instructions:</b><br>
-    {instructions}
+    {formatted_instructions}
   </div>
 </div>
 </details>
@@ -428,5 +558,7 @@ elif page == "Saved Recipes":
             with bm_col:
                 if st.button("🗑️", key=f"remove_{recipe_name}_{i}"):
                     del st.session_state.saved_recipes[recipe_name]
-                    save_saved_recipes(st.session_state.saved_recipes)
+                    
+                    # Flip the switch and restart!
+                    st.session_state.trigger_save = True
                     st.rerun()
