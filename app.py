@@ -9,13 +9,32 @@ import os
 import inflect
 from streamlit_local_storage import LocalStorage
 import uuid
+import datetime
+import math
+import base64
 
 # Initialize the bridge to the user's browser
 localS = LocalStorage()
 p = inflect.engine()
 
 # --- 1. Page Configuration & CSS ---
-st.set_page_config(page_title="Dishcover", page_icon="🍳", layout="centered")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+LOGO_PATH = os.path.join(BASE_DIR, "assets", "DishCover Logo.png")
+LOGO_PATH2 = os.path.join(BASE_DIR, "assets", "DishCover Logo2.png")
+
+with open(LOGO_PATH, "rb") as f:
+    logo_b64 = base64.b64encode(f.read()).decode()
+
+with open(LOGO_PATH2, "rb") as f:
+    logo2 = base64.b64encode(f.read()).decode()
+
+st.set_page_config(
+    page_title="Dishcover", 
+    page_icon=LOGO_PATH, 
+    layout="wide",
+    initial_sidebar_state="auto",
+)
+
 
 st.markdown("""
 <style>
@@ -23,7 +42,19 @@ st.markdown("""
 label[data-testid="stWidgetLabel"] p { color: #2C1A0E !important; }
 html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; }
 .stApp { background-color: #FAF7F2; }
+            
+/* Reduce excessive bottom whitespace */
+.block-container,
+[data-testid="stMainBlockContainer"] {
+    padding-bottom: 2rem !important;
+}
 
+/* Makes st.logo() rounded */
+[data-testid="stLogo"] {
+    border-radius: 50%;      /* Use 12px instead for rounded corners */
+    object-fit: cover;
+}
+            
 /* ── Typography ── */
 .hero-title {
     font-family: 'Playfair Display', serif;
@@ -37,7 +68,104 @@ html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; }
 
 /* ── Sidebar ── */
 section[data-testid="stSidebar"] { background-color: #2C1A0E; }
-section[data-testid="stSidebar"] * { color: #F5EFE6 !important; }
+section[data-testid="stSidebar"] *:not([data-testid="stIconMaterial"]) { 
+    color: #F5EFE6 !important; 
+    font-family: 'DM Sans', sans-serif !important;
+}
+section[data-testid="stSidebar"] [data-testid="stIconMaterial"] {
+    color: #F5EFE6 !important;
+}
+section[data-testid="stSidebar"] .stButton > button > div {
+    width: 100%;
+    text-align: left !important;
+}
+            
+.sidebar-brand {
+    font-family: 'Playfair Display', serif !important;
+    font-size: 1.65rem !important;
+    font-weight: 700 !important;
+    color: #F5EFE6 !important;
+    margin-bottom: 1.1rem;
+    letter-spacing: 0.01em;
+}
+.sidebar-section-label {
+    font-size: 0.72rem !important;
+    font-weight: 600 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(245, 239, 230, 0.55) !important;
+    margin-top: 0.2rem;
+    margin-bottom: 0.5rem;
+}
+section[data-testid="stSidebar"] hr {
+    margin: 1rem 0 !important;
+    border-color: rgba(245, 239, 230, 0.12) !important;
+}
+section[data-testid="stSidebar"] label[data-testid="stWidgetLabel"] p,
+section[data-testid="stSidebar"] [data-testid="stCheckbox"] p {
+    color: #F5EFE6 !important;
+    font-size: 0.9rem !important;
+}
+
+/* Sidebar Expander (Pantry Staples) */
+section[data-testid="stSidebar"] [data-testid="stExpander"] {
+    background-color: rgba(0, 0, 0, 0.22) !important;
+    border: 1px solid rgba(245, 239, 230, 0.14) !important;
+    border-radius: 8px !important;
+    margin-top: 0.4rem;
+}
+
+/* ── Sidebar Navigation, Daily Picks & Recent Search Buttons ── */
+section[data-testid="stSidebar"] .stButton button {
+    background-color: transparent !important;
+    color: #F5EFE6 !important;
+    border: none !important;
+    border-radius: 8px !important;
+    display: flex !important;
+    justify-content: flex-start !important;
+    align-items: center !important;
+    text-align: left !important;
+    padding: 0.55rem 0.85rem !important;
+    font-size: 0.92rem !important;
+    font-weight: 500 !important;
+    transition: background-color 0.2s ease !important;
+}
+section[data-testid="stSidebar"] .stButton button div,
+section[data-testid="stSidebar"] .stButton button p {
+    width: 100% !important;
+    text-align: left !important;
+    justify-content: flex-start !important;
+    margin: 0 !important;
+}
+section[data-testid="stSidebar"] .stButton button:hover {
+    background-color: rgba(0, 0, 0, 0.28) !important;
+}
+section[data-testid="stSidebar"] .stButton button[kind="primary"],
+section[data-testid="stSidebar"] .stButton button[data-testid*="primary"] {
+    background-color: rgba(0, 0, 0, 0.42) !important;
+    border-left: 3px solid #C9541A !important;
+    font-weight: 600 !important;
+}
+
+/* Unify multiselect tags with Dishcover burnt orange */
+span[data-baseweb="tag"] {
+    background-color: #C9541A !important;
+    color: #FFFFFF !important;
+    border-radius: 6px !important;
+}
+
+/* Darken section on hover */
+section[data-testid="stSidebar"] .stButton > button:hover {
+    background-color: rgba(0, 0, 0, 0.28) !important;
+}
+
+/* Active section highlight */
+section[data-testid="stSidebar"] .stButton > button[kind="primary"],
+section[data-testid="stSidebar"] .stButton > button[data-testid="stBaseButton-primary"] {
+    background-color: rgba(0, 0, 0, 0.42) !important;
+    border-left: 4px solid #C9541A !important;
+    font-weight: 600 !important;
+}
 
 /* ── Recipe Cards ── */
 .recipe-card {
@@ -89,7 +217,8 @@ details summary:hover h3 {
     font-weight: 600 !important; width: 100%; padding: 0.6rem !important;
 }
 /* Bookmark & action icon buttons in narrow columns */
-div[data-testid="column"]:last-child .stButton > button {
+div[data-testid="column"]:last-child .stButton > button,
+div[data-testid="stColumn"]:last-child .stButton > button {
     background: transparent !important;
     border: 1px solid #E8DDD3 !important;
     box-shadow: none !important;
@@ -102,9 +231,38 @@ div[data-testid="column"]:last-child .stButton > button {
     margin-top: 0.6rem;
     color: #2C1A0E !important;
 }
-div[data-testid="column"]:last-child .stButton > button:hover {
+div[data-testid="column"]:last-child .stButton > button:hover,
+div[data-testid="stColumn"]:last-child .stButton > button:hover {
     background: #F5EFE6 !important;
     border-color: #C9541A !important;
+}
+
+/* ── Bottom Pagination Arrow Buttons ── */
+.st-key-pg_first button,
+.st-key-pg_prev button,
+.st-key-pg_next button,
+.st-key-pg_last button {
+    background-color: transparent !important;
+    color: #2C1A0E !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0.3rem 0.2rem !important;
+    font-size: 1.15rem !important;
+    font-weight: 600 !important;
+    min-height: 2.2rem !important;
+}
+.st-key-pg_first button:hover:not(:disabled),
+.st-key-pg_prev button:hover:not(:disabled),
+.st-key-pg_next button:hover:not(:disabled),
+.st-key-pg_last button:hover:not(:disabled) {
+    background-color: #EDE5DB !important;
+    color: #C9541A !important;
+}
+.st-key-pg_first button:disabled,
+.st-key-pg_prev button:disabled,
+.st-key-pg_next button:disabled,
+.st-key-pg_last button:disabled {
+    opacity: 0.35 !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -112,7 +270,6 @@ div[data-testid="column"]:last-child .stButton > button:hover {
 # --- 2. Load KNN Models ---
 @st.cache_resource(show_spinner=False)
 def load_models():
-    
     vectorizer = joblib.load('data/tfidf_vectorizer.pkl') 
     knn_model = joblib.load('data/knn_model.pkl') 
     df = pd.read_csv('data/cleaned_recipes.csv') 
@@ -133,7 +290,6 @@ def load_saved_recipes():
     # 2. If data exists, decode it and load it in!
     if browser_data:
         try:
-            # We use json.loads to convert the browser string back into a Python dictionary
             return json.loads(browser_data)
         except:
             return {}
@@ -146,7 +302,6 @@ def save_saved_recipes(data, unique_widget_key):
 
     # If a button flipped the flag to True, generate a fresh widget to save the data
     if st.session_state.trigger_save:
-        # uuid.uuid4() ensures the widget key is 100% unique every single time
         localS.setItem("dishcover_recipes", json.dumps(st.session_state.saved_recipes), key=f"save_{uuid.uuid4()}")
         st.session_state.trigger_save = False
 
@@ -155,40 +310,169 @@ if 'saved_recipes' not in st.session_state:
     st.session_state.saved_recipes = load_saved_recipes()
 if 'submitted_ingredients' not in st.session_state:
     st.session_state.submitted_ingredients = []
+if 'page' not in st.session_state:
+    st.session_state.page = "Discover Recipes"
+if 'recent_searches' not in st.session_state:
+    st.session_state.recent_searches = []
+if 'per_page' not in st.session_state:
+    st.session_state.per_page = 5
+if 'current_page' not in st.session_state:
+    st.session_state.current_page = 1
 
 # --- Preprocessing ---
 all_ingredients_text = " ".join(df['Cleaned_Ingredients'].dropna().astype(str).tolist())
 word_counts = Counter(all_ingredients_text.split())
 unique_ingredients = sorted([word for word, count in word_counts.items() if count >= 5 and len(word) > 1])
 
+BASIC_STAPLES = [
+    "salt", "pepper", "water", "oil", "sugar", "butter", "onion",
+    "garlic", "flour", "vinegar", "soy sauce"
+]
+
+# -- Top Recipes -- 
+@st.dialog("🍽️ Recipe of the Day")
+def show_daily_recipe(row):
+    recipe_name = str(row["Title"])
+    st.markdown(f"<h3 style='font-family: Playfair Display, serif; color: #2C1A0E; margin-top: 0;'>{recipe_name.title()}</h3>", unsafe_allow_html=True)
+
+    # Format ingredients
+    try:
+        ing_list = ast.literal_eval(row["Ingredients"])
+        ing_html = "<br>".join([f"• {ing}" for ing in ing_list])
+    except Exception:
+        ing_html = str(row.get("Cleaned_Ingredients", "")).replace("_", " ").title()
+
+    st.markdown(f"<div style='font-size: 0.9rem; color: #5C3D2E; margin-bottom: 1rem;'><b>Ingredients:</b><br>{ing_html}</div>", unsafe_allow_html=True)
+
+    # Format numbered instructions
+    raw_instructions = str(row.get("Instructions", "No instructions provided."))
+    if raw_instructions == "No instructions provided." or raw_instructions.lower() == "nan":
+        formatted_instructions = "No instructions provided."
+    else:
+        steps = [step.strip() for step in raw_instructions.split(". ") if len(step.strip()) > 0]
+        formatted_instructions = "<br>".join([f"<b>{i+1}.</b> {step}." if not step.endswith(".") else f"<b>{i+1}.</b> {step}" for i, step in enumerate(steps)])
+
+    st.markdown(f"<div style='font-size: 0.9rem; color: #4A3728; line-height: 1.6; border-top: 1px solid #EDE5DB; padding-top: 0.7rem;'><b>Instructions:</b><br>{formatted_instructions}</div>", unsafe_allow_html=True)
+
+    st.markdown("")
+    is_saved = recipe_name in st.session_state.saved_recipes
+    if st.button("❤️ Saved" if is_saved else "🤍 Save Recipe", use_container_width=True):
+        if is_saved:
+            del st.session_state.saved_recipes[recipe_name]
+        else:
+            st.session_state.saved_recipes[recipe_name] = {
+                "Title": recipe_name,
+                "Ingredients": str(row.get("Ingredients", "")),
+                "Instructions": str(row.get("Instructions", "")),
+            }
+        st.session_state.trigger_save = True
+        st.rerun()
+
+
 # --- 4. Sidebar UI (Settings) ---
 with st.sidebar:
 
-    st.markdown("## 🍽️ Dishcover")
-
-    page = st.radio(
-        "Navigation",
-        [
-            "Discover Recipes",
-            "Saved Recipes"
-        ]
+    st.markdown(
+        f'<div class="sidebar-brand" style="display:flex; align-items:center; gap:0.65rem;">'
+        f'<img src="data:image/png;base64,{logo2}" style="width:48px; height:48px; flex-shrink:0; border-radius:50%; object-fit:cover;">'
+        f'<span>Dishcover</span>'
+        f'</div>',
+        unsafe_allow_html=True
     )
 
+    # ── TOP: Navigation ──
+    st.markdown('<div class="sidebar-section-label">Navigation</div>', unsafe_allow_html=True)
+
+    saved_count = len(st.session_state.saved_recipes)
+    nav_items = [
+        ("🔍  Discover Recipes", "Discover Recipes"),
+        (f"❤️  Saved Recipes ({saved_count})", "Saved Recipes"),
+    ]
+
+    for label, page_key in nav_items:
+        is_active = (st.session_state.page == page_key)
+        if st.button(
+            label,
+            key=f"nav_{page_key}",
+            use_container_width=True,
+            type="primary" if is_active else "secondary",
+        ):
+            st.session_state.page = page_key
+            st.rerun()
+
+    page = st.session_state.page
+
     st.markdown("---")
-    st.markdown("## ⚙️ Settings")
-    top_k = st.slider("Number of recipes to show", 3, 15, 5, 1)
+
+    # ── MIDDLE 1: Top Recipes of the Day ──
+    st.markdown('<div class="sidebar-section-label">Top Recipes of the Day</div>', unsafe_allow_html=True)
+
+    today_seed = int(datetime.date.today().strftime("%Y%m%d"))
+    daily_picks = df.sample(n=min(3, len(df)), random_state=today_seed)
+
+    for idx, (_, pick_row) in enumerate(daily_picks.iterrows()):
+        pick_title = str(pick_row["Title"]).title()
+        short_title = pick_title[:24] + "..." if len(pick_title) > 27 else pick_title
+        if st.button(f"#{idx + 1}  {short_title}", key=f"daily_pick_{idx}", use_container_width=True):
+            show_daily_recipe(pick_row)
+
     st.markdown("---")
-    st.markdown(f"❤️ Saved Recipes: {len(st.session_state.saved_recipes)}")
+
+    # ── MIDDLE 2: Recent Searches ──
+    st.markdown('<div class="sidebar-section-label">Recent Searches</div>', unsafe_allow_html=True)
+
+    if not st.session_state.recent_searches:
+        st.caption("Your last 3 searches will appear here.")
+    else:
+        for idx, combo in enumerate(st.session_state.recent_searches):
+            combo_label = ", ".join(combo)
+            if len(combo_label) > 26:
+                combo_label = combo_label[:23] + "..."
+            if st.button(f"↩  {combo_label}", key=f"recent_{idx}", use_container_width=True):
+                st.session_state.submitted_ingredients = combo.copy()
+                st.session_state.kitchen_multiselect = combo.copy()
+                st.session_state.current_page = 1
+                st.session_state.page = "Discover Recipes"
+                st.rerun()
+
+    st.markdown("---")
+
+    # ── BOTTOM: Settings ──
+    st.markdown('<div class="sidebar-section-label">Settings</div>', unsafe_allow_html=True)
+    
+    strict_mode = st.toggle(
+        "Strict Mode", 
+        value=False,
+        help="Prioritizes 100% ready-to-cook recipes with zero missing ingredients."
+    )
+
+    assume_staples = st.toggle(
+        "Ignore basic staples", 
+        value=True,
+        help="Ignores the items selected in Pantry Staples below when counting missing ingredients."
+    )
+
+    with st.expander("🧂 Pantry Staples"):
+        active_staples = st.multiselect(
+            "Customize ignored basics:",
+            options=BASIC_STAPLES,
+            default=BASIC_STAPLES,
+            key="custom_staples"
+        )
+
 
 # --- 5. Main Page UI ---
 if page == "Discover Recipes":
     st.markdown(
-        '<div class="hero-title">Dishcover 🍽️</div>'
-        '<div class="hero-sub">Find recipes based on what\'s already in your kitchen — reduce waste, cook smarter.</div>',
+        f'<div class="hero-title" style="display:flex; align-items:center; gap:0.1rem;">'
+        f'<span>Dishcover</span>'
+        f'<img src="data:image/png;base64,{logo_b64}" style="width:80px; height:80px; flex-shrink:0; border-radius:50%; object-fit:cover; transform:translateY(6px);">'
+        f'</div>'
+        f'<div class="hero-sub">Find recipes based on what\'s already in your kitchen — reduce waste, cook smarter.</div>',
         unsafe_allow_html=True
     )
 
-   # --- 1. Define words that describe preparation ---
+    # --- 1. Define words that describe preparation ---
     fluff_words = [
         ' can ', ' cans ', ' canned ', ' jar ', ' jars ', ' package ', ' packages ', ' of ', 
         ' cut ', ' inch ', ' halved ', ' pitted ', ' thinly ', ' sliced ', 'adjustableblade',
@@ -203,28 +487,19 @@ if page == "Discover Recipes":
         'room temperature ', 'cold ', 'frozen ', 'freshly ', 'softened ', 'melted ', 'grated ', 'shredded ', 'sliced thinly ',
         'from the can ', 'from the jar ', 'from the package ', 'canned ', 'jarred ', 'packaged ',
         'from', 'glaze', 'minute', 'plus', 'cooked', 'uncooked', 'raw', 'ripe', 'overripe', 'underripe', 'dried', 'fresh ', 'frozen ', 'cube'
-
     ]
     # --- 2. Clean your original list ---
     display_ingredients = set()
 
-    # Assuming 'unique_ingredients' is your original raw list based on your code
     for item in unique_ingredients: 
-        
-        # Replace underscores with spaces FIRST
         clean_item = f" {item.lower().replace('_', ' ')} " 
         
-        # Strip out the fluff words
         for word in fluff_words:
             clean_item = clean_item.replace(word, ' ')
                 
-        # --- THE NEW FIX: Process word-by-word ---
-        
-        # 1. Break the remaining string into a list of individual words
         words = clean_item.split()
         final_words = []
         
-        # 2. Singularize every single word one by one
         for w in words:
             if len(w) <= 1:
                 continue
@@ -233,15 +508,9 @@ if page == "Discover Recipes":
             final_w = sing if sing else w 
             final_words.append(final_w)
             
-        # 3. Remove duplicate words inside the same string 
-        # (e.g. ['egg', 'egg'] instantly becomes just ['egg'])
-        # dict.fromkeys() is a python trick to remove duplicates while keeping the original order
         unique_words = list(dict.fromkeys(final_words))
-        
-        # 4. Join back together and capitalize for the UI
         final_item = " ".join(unique_words).title()
         
-        # Add to the master set
         if final_item:
             display_ingredients.add(final_item)
 
@@ -251,17 +520,26 @@ if page == "Discover Recipes":
     # --- 4. The actual Streamlit UI component ---
     selected_ingredients = st.multiselect(
         "What's in your kitchen?", 
-        options=clean_dropdown_options, # We pass the cleaned list here!
+        options=clean_dropdown_options,
         placeholder="Type to search ingredients...",
-        format_func=lambda x: x.replace('_', ' ').title() 
+        format_func=lambda x: x.replace('_', ' ').title(),
+        key="kitchen_multiselect",
+        select_all=False
     )
 
     # The Button
-    search_button = st.button("Find Recipes 🔍")
+    search_button = st.button("Find Recipes 🔍", use_container_width=True)
 
-    # If the button is clicked, officially lock in the ingredients to memory!
+    # If the button is clicked, lock in the ingredients and record in Recent Searches
     if search_button:
         st.session_state.submitted_ingredients = selected_ingredients.copy()
+        st.session_state.current_page = 1
+        if selected_ingredients:
+            if selected_ingredients in st.session_state.recent_searches:
+                st.session_state.recent_searches.remove(selected_ingredients)
+            st.session_state.recent_searches.insert(0, selected_ingredients.copy())
+            st.session_state.recent_searches = st.session_state.recent_searches[:3]
+            st.rerun()
 
 
     # --- 6. ML Logic & Rendering ---
@@ -297,43 +575,123 @@ if page == "Discover Recipes":
                 'rice': ['wild', 'brown', 'cauliflower'],
                 'oil': ['sesame', 'chili', 'coconut', 'truffle']
             }
-            
+
             # Load the locked-in ingredients from memory
             active_ingredients = st.session_state.submitted_ingredients
             
-            user_search_string = " ".join(active_ingredients)
+            # Include both spaced and underscored versions so multi-word ingredients match TF-IDF
+            search_tokens = []
+            for ing in active_ingredients:
+                ing_lower = ing.lower()
+                search_tokens.append(ing_lower)
+                search_tokens.append(ing_lower.replace(' ', '_'))
+            user_search_string = " ".join(search_tokens)
             user_vector = vectorizer.transform([user_search_string])
-            distances, indices = knn_model.kneighbors(user_vector, n_neighbors=50)
+            distances, indices = knn_model.kneighbors(user_vector, n_neighbors=100)
             similarity_scores = 1 - distances.flatten()
             
             top_results = df.iloc[indices.flatten()].copy()
             top_results['Cosine_Score'] = similarity_scores
-            
-            # --- UNIFIED MATCHING LOGIC ---
-            def count_matches(recipe_ingredients_string):
-                count = 0
-                recipe_text_lower = str(recipe_ingredients_string).lower()
-                for item in active_ingredients:
-                    search_term = item.lower()
-                    
-                    # Dynamically build the negative regex based on our dictionary
-                    if search_term in exclusion_rules:
-                        lookbehinds = "".join([f"(?<!{adj} )" for adj in exclusion_rules[search_term]])
-                        pattern = re.compile(rf'{lookbehinds}\b{re.escape(search_term)}\b')
-                    else:
-                        pattern = re.compile(rf'\b{re.escape(search_term)}\b')
-                        
-                    if pattern.search(recipe_text_lower):
-                        count += 1
-                return count
-                
-            top_results['Match_Count'] = top_results['Cleaned_Ingredients'].apply(count_matches)
-            final_results = top_results.sort_values(by=['Match_Count', 'Cosine_Score'], ascending=[False, False]).head(top_k)
 
-            if final_results.empty:
+            def build_pattern(term):
+                term = term.lower().replace('_', ' ')
+                if term in exclusion_rules:
+                    lookbehinds = "".join([f"(?<!{adj} )" for adj in exclusion_rules[term]])
+                    return re.compile(rf'{lookbehinds}\b{re.escape(term)}\b', re.IGNORECASE)
+                return re.compile(rf'\b{re.escape(term)}\b', re.IGNORECASE)
+
+            active_patterns = [(item, build_pattern(item)) for item in active_ingredients]
+            staple_patterns = [re.compile(rf'\b{re.escape(s)}\b', re.IGNORECASE) for s in active_staples]
+
+            UNITS_PATTERN = re.compile(
+                r'^(?:cups?|tablespoons?|tbsp\.?|teaspoons?|tsp\.?|ounces?|oz\.?|pounds?|lbs?\.?|'
+                r'grams?|g\.?|kg\.?|ml\.?|liters?|l\.?|cans?|jars?|packages?|pkgs?\.?|bottles?|'
+                r'cloves?|bunches?|pinch(?:es)?|dashes?|slices?|pieces?|sticks?|sprigs?|heads?|'
+                r'bulbs?|stalks?|handfuls?|large|medium|small|fresh|dried|frozen|peeled|chopped|'
+                r'diced|minced|sliced|grated|shredded|ground|whole|halved|of)\b\s*',
+                re.IGNORECASE
+            )
+
+            def clean_ingredient_name(raw_ing):
+                text = str(raw_ing).strip()
+                text = re.sub(r'\([^)]*\)', '', text)
+                text = text.split(',')[0]
+                text = re.sub(r'^[\d\s/.,–\-¼½¾⅓⅔⅛⅜⅝⅞]+', '', text)
+                while True:
+                    new_text = UNITS_PATTERN.sub('', text).strip()
+                    if new_text == text:
+                        break
+                    text = new_text
+                text = re.sub(r'\s+', ' ', text).strip(' -–—')
+                return text.title() if text else str(raw_ing).strip()
+
+            def evaluate_recipe(row):
+                try:
+                    ing_lines = ast.literal_eval(row['Ingredients'])
+                except Exception:
+                    ing_lines = [str(row['Cleaned_Ingredients'])]
+
+                matched_user_items = set()
+                missing_items = []
+
+                for line in ing_lines:
+                    line_str = str(line).strip()
+                    line_matched = False
+
+                    # 1. Check if this recipe line uses any of the user's ingredients
+                    for item, pat in active_patterns:
+                        if pat.search(line_str):
+                            matched_user_items.add(item)
+                            line_matched = True
+
+                    # 2. If not matched, check if it's a basic pantry staple
+                    if not line_matched and assume_staples:
+                        if any(sp.search(line_str) for sp in staple_patterns):
+                            line_matched = True
+
+                    # 3. Otherwise, it's a missing ingredient
+                    if not line_matched:
+                        missing_items.append(clean_ingredient_name(line_str))
+
+                # Remove duplicates while preserving order
+                unique_missing = list(dict.fromkeys(missing_items))
+                matched_list = [item.replace('_', ' ').title() for item in matched_user_items]
+                return pd.Series([len(matched_list), len(unique_missing), unique_missing, matched_list])
+
+            top_results[['Match_Count', 'Missing_Count', 'Missing_Ingredients', 'Matched_Ingredients']] = top_results.apply(evaluate_recipe, axis=1)
+            
+            # Only keep recipes that actually use at least 1 of the user's ingredients
+            matched_results = top_results[top_results['Match_Count'] > 0]
+
+            # Sort by: fewest missing ingredients first -> most user matches -> highest cosine score
+            ranked_results = matched_results.sort_values(
+                by=['Missing_Count', 'Match_Count', 'Cosine_Score'],
+                ascending=[True, False, False]
+            )
+
+            # Apply Strict Mode with smart fallback
+            if strict_mode:
+                exact_matches = ranked_results[ranked_results['Missing_Count'] == 0]
+                if not exact_matches.empty:
+                    all_results = exact_matches
+                else:
+                    st.info(
+                        "No 100% exact matches found with just those ingredients. "
+                        "Showing the closest recipes with the fewest missing ingredients instead!"
+                    )
+                    all_results = ranked_results
+            else:
+                all_results = ranked_results
+
+            if all_results.empty:
                 st.info("No recipes found. Try adding different ingredients.")
             else:
-                st.markdown(f"<h3 style='color: #2C1A0E; margin-top: -0.5rem; margin-bottom: 1rem;'>Top {len(final_results)} Matches</h3>", unsafe_allow_html=True)
+                max_available = min(len(all_results), 25)
+                per_page = st.session_state.per_page
+                final_results = all_results.head(min(per_page, max_available))
+                total_shown = len(final_results)
+
+                st.markdown("<h3 style='color: #2C1A0E; margin-top: -0.5rem; margin-bottom: 1rem;'>Top Matches</h3>", unsafe_allow_html=True)
                 for rank, (_, row) in enumerate(final_results.iterrows(), start=1):
                     recipe_name = str(row["Title"])
                     is_saved = recipe_name in st.session_state.saved_recipes
@@ -341,23 +699,25 @@ if page == "Discover Recipes":
                     
                     matched = row["Match_Count"]
                     total_selected = len(active_ingredients)
-                    
+                    missing = int(row["Missing_Count"])
+                    if missing == 0:
+                        missing_badge = '<span class="match-badge" style="background:#E8F5E9; color:#2E7D32; margin-left:6px;">✨ 100% Ready to Cook</span>'
+                    else:
+                        missing_badge = f'<span class="match-badge" style="background:#FFF3E0; color:#C9541A; margin-left:6px;">🛒 Missing {missing} ingredient{"s" if missing != 1 else ""}</span>'
+
+
                     # --- UNIFIED PREVIEW TEXT LOGIC ---
-                    found_in_recipe = []
-                    recipe_text_lower = str(row['Cleaned_Ingredients']).lower()
-                    for item in active_ingredients:
-                        search_term = item.lower()
-                        
-                        if search_term in exclusion_rules:
-                            lookbehinds = "".join([f"(?<!{adj} )" for adj in exclusion_rules[search_term]])
-                            pattern = re.compile(rf'{lookbehinds}\b{re.escape(search_term)}\b')
-                        else:
-                            pattern = re.compile(rf'\b{re.escape(search_term)}\b')
-                            
-                        if pattern.search(recipe_text_lower):
-                            found_in_recipe.append(item.replace('_', ' ').title())
+                    found_in_recipe = row["Matched_Ingredients"]
+                    if found_in_recipe:
+                        used_preview_string = ", ".join(found_in_recipe)
                     else:
                         used_preview_string = "None perfectly matched (Similar profile)"
+
+                    missing_items = row["Missing_Ingredients"]
+                    if missing_items:
+                        missing_preview_html = f'<div style="font-size: 0.9rem; color: #7A5C44; margin-top: 0.2rem;"><b style="color: #C9541A;">Missing ingredients:</b> {", ".join(missing_items)}</div>'
+                    else:
+                        missing_preview_html = ""
 
                     # 3. THE ORANGE HIGHLIGHTER
                     try:
@@ -378,7 +738,6 @@ if page == "Discover Recipes":
                             formatted_ings.append(f"• {highlighted_ing}")
                         ingredients_html = "<br>".join(formatted_ings)
                     except:
-                        # Do the exact same thing for the except block if the CSV data is messy
                         highlighted_ing = str(row['Cleaned_Ingredients']).replace('_', ' ').title()
                         for search_term in sorted(active_ingredients, key=len, reverse=True):
                             display_term = search_term.lower().replace('_', ' ')
@@ -397,7 +756,6 @@ if page == "Discover Recipes":
                         formatted_instructions = "No instructions provided."
                     else:
                         steps = [step.strip() for step in raw_instructions.split('. ') if len(step.strip()) > 0]
-                        # Adding an extra <br> for better spacing between cooking steps!
                         formatted_instructions = "<br>".join([f"<b>{i+1}.</b> {step}." if not step.endswith('.') else f"<b>{i+1}.</b> {step}" for i, step in enumerate(steps)])
                     
                     bookmark_color = "#F5C518" if is_saved else "none"
@@ -412,10 +770,12 @@ if page == "Discover Recipes":
 </div>
 <div style="margin-top: 0.3rem;">
 <span class="match-badge">✓ {matched} out of {total_selected} selected ingredients used</span>
+{missing_badge}
 </div>
 <div style="font-size: 0.9rem; color: #7A5C44; margin-top: 0.2rem;">
 <b style="color: #2C1A0E;">Used from kitchen:</b> {used_preview_string}
 </div>
+{missing_preview_html}
 </summary>
 <div style="margin-top: 0.5rem;">
 <div class="ingredient-list">
@@ -448,9 +808,40 @@ if page == "Discover Recipes":
                                     "total_selected": total_selected,
                                 }
                             
-                            # Flip the switch and restart!
                             st.session_state.trigger_save = True
                             st.rerun()
+
+                # --- Bottom Pagination Bar ---
+                st.markdown("<hr style='margin: 1.5rem 0 0.8rem 0; border-color: #E8DDD3;'>", unsafe_allow_html=True)
+
+                spacer, c_res, c_show_lbl, c_show = st.columns(
+                    [7.5, 2.0, 0.9, 1.4],
+                    vertical_alignment="center"
+                )
+
+                with c_res:
+                    st.markdown(
+                        f"<div style='text-align:right; color:#5C3D2E; font-size:0.9rem; white-space:nowrap;'>"
+                        f"Showing {total_shown} of {max_available} Result(s)</div>",
+                        unsafe_allow_html=True
+                    )
+
+                with c_show_lbl:
+                    st.markdown("<div style='text-align:right; color:#5C3D2E; font-size:0.9rem;'>Show:</div>", unsafe_allow_html=True)
+
+                with c_show:
+                    page_sizes = [5, 10, 15, 25]
+                    new_per_page = st.selectbox(
+                        "Show",
+                        options=page_sizes,
+                        index=page_sizes.index(per_page) if per_page in page_sizes else 0,
+                        label_visibility="collapsed",
+                        key="pagination_show_select"
+                    )
+                    if new_per_page != st.session_state.per_page:
+                        st.session_state.per_page = new_per_page
+                        st.rerun()
+
 
 elif page == "Saved Recipes":
 
@@ -479,7 +870,6 @@ elif page == "Saved Recipes":
 
         for i, (recipe_name, recipe) in enumerate(st.session_state.saved_recipes.items(), start=1):
 
-            # Parse ingredients for count and preview
             try:
                 ing_list = ast.literal_eval(recipe['Ingredients'])
                 total_ing_count = len(ing_list)
@@ -491,14 +881,11 @@ elif page == "Saved Recipes":
                 total_ing_count = "?"
                 ing_preview = recipe['Ingredients'][:120] + "..." if len(recipe['Ingredients']) > 120 else recipe['Ingredients']
 
-            # Matched ingredients info (may not exist for older saved recipes)
             matched_ings = recipe.get("matched_ingredients", [])
             matched_count = recipe.get("matched_count", None)
             total_selected = recipe.get("total_selected", None)
 
-            # If the saved recipe has match data, always display it!
             if matched_count is not None:
-                # If they had matches, list them. If 0 matches, show the fallback text.
                 display_ings = ", ".join(matched_ings) if matched_ings else "None perfectly matched"
                 
                 matched_html = f"""
@@ -508,16 +895,13 @@ elif page == "Saved Recipes":
   &nbsp;·&nbsp; {display_ings}
 </div>"""
             else:
-                # This only catches super old saves before we added the tracking feature
                 matched_html = ""
 
-            # Format full ingredients for expanded view
             try:
                 full_ing_html = "<br>".join([f"• {ing}" for ing in ing_list])
             except:
                 full_ing_html = recipe['Ingredients']
 
-            # --- NEW: Numbered Instructions Logic ---
             raw_instructions = str(recipe.get('Instructions', 'No instructions provided.'))
             
             if raw_instructions == 'No instructions provided.' or raw_instructions.lower() == 'nan':
@@ -558,7 +942,5 @@ elif page == "Saved Recipes":
             with bm_col:
                 if st.button("🗑️", key=f"remove_{recipe_name}_{i}"):
                     del st.session_state.saved_recipes[recipe_name]
-                    
-                    # Flip the switch and restart!
                     st.session_state.trigger_save = True
                     st.rerun()
